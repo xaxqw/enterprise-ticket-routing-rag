@@ -1,0 +1,82 @@
+# ============================================================
+# 多智能体 RAG 问答平台 —— 全栈编排
+#   redis         : 缓存 + Celery 消息队列 + 会话/用户持久化
+#   rag-api       : FastAPI 后端（端口 8000）
+#   celery-worker : 异步文档入库流水线
+#   frontend      : Streamlit 问答界面（端口 8501）
+#
+# 一键启动：docker compose up -d --build
+# 首次使用前请在 .env 填好 SILICONFLOW_API_KEY
+# ============================================================
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes   # 开启持久化，重启不丢用户/会话
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  rag-api:
+    build: .
+    container_name: rag-api
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis          # 容器内用服务名连 Redis
+      - REDIS_PORT=6379
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data          # 持久化向量库 / 上传文档
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  celery-worker:
+    build: .
+    container_name: rag-celery
+    command: celery -A app.core.celery_app worker --loglevel=info --pool=solo
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./data:/app/data          # worker 与 api 共享向量库目录
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: .
+    container_name: rag-frontend
+    command: streamlit run dashboard/chat.py --server.port 8501 --server.address 0.0.0.0
+    env_file:
+      - .env
+    environment:
+      - API_BASE=http://rag-api:8000   # 前端容器内访问后端用服务名
+    ports:
+      - "8501:8501"
+    depends_on:
+      - rag-api
+    restart: unless-stopped
+
+volumes:
+  redis_data:

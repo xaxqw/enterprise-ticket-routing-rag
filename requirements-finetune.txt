@@ -1,0 +1,14 @@
+# ========================================================================
+# LoRA 微调依赖（CPU 可跑，基于 Qwen2.5-0.5B）
+# 单独拆出，避免 torch/transformers 撑大线上运行镜像
+# 安装：pip install -r requirements-finetune.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# 说明：CPU 训练用 CPU 版 torch。如需 GPU，请改装对应 CUDA 版 torch。
+# ========================================================================
+torch==2.3.1                     # CPU 版即可（默认从 PyPI 装的就是 CPU 版）
+transformers==4.44.2
+peft==0.12.0                     # LoRA 核心库
+datasets==2.21.0
+accelerate==0.34.2
+modelscope==1.18.0               # 从国内魔搭下载 Qwen2.5-0.5B，比 HF 快
+sentencepiece==0.2.0             # Qwen tokenizer 依赖

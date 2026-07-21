@@ -1,0 +1,18 @@
+# 虚拟环境 / 缓存
+rag_proj_env/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+
+# 大文件 / 运行时产物（通过 volume 挂载，无需进镜像）
+data/vector_db/
+data/raw/
+models/
+logs/
+*.log
+
+# 本地文档 / 说明
+*.md
+使用说明.html
+.DS_Store

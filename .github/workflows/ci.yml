@@ -1,0 +1,30 @@
+name: CI
+
+# 持续集成：每次 push / PR 自动跑测试，保证「改了代码不会把 RAG 平台跑挂」
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # 全程离线：conftest 用 fakeredis 替换真实 Redis，并用 monkeypatch 隔离在线 LLM/Embedding，
+    # 因此本工作流不需要任何密钥（如 SILICONFLOW_API_KEY）。
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest -q

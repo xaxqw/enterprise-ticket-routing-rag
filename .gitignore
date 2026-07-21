@@ -10,6 +10,13 @@ rag_proj_env/
 rag_proj_env_good/  
 venv/  
 venv_finetune/  
+
+# 非项目文件（面试/教程等，已移出仓库，见 D:\RAG_面试资料\）
+上传GitHub教程.md
+模拟面试防御手册.md
+简历项目描述模板.md
+面试准备.md
+面试宝典.docx
 env/  
 .venv/  
 

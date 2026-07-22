@@ -1,7 +1,7 @@
 """
 FAISS 向量存储：本地向量库 + 本地 Ollama 向量化（完全免费/离线）
 
-- 向量生成走本地 Ollama bge-m3（1024 维多语言/中文向量，无需 API Key）
+- 向量生成走本地 Ollama nomic-embed-text（768 维通用向量，无需 API Key）
 - 索引构建与持久化走本地 FAISS（IndexFlatIP，离线、免费）
 - 检索阶段对归一化向量矩阵做精确内积（= 余弦相似度），与 FAISS IndexFlatIP
   数学等价；FAISS 索引负责落盘，检索逻辑与重排/融合共享同一 numpy 矩阵。
@@ -27,8 +27,8 @@ class FAISSVectorStore:
         index_path: 向量索引保存路径
         """
         self.index_path = index_path
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "bge-m3")
-        self.dimension = int(os.getenv("EMBEDDING_DIM", 1024))
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+        self.dimension = int(os.getenv("EMBEDDING_DIM", "768"))
         self.texts = []  # 存原始文本
         self.metadata = []  # 存元数据（来源、页码等）
         self.index = None  # FAISS IndexFlatIP 索引（负责构建与持久化）

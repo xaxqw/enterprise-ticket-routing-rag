@@ -2,12 +2,12 @@
     完整RAG服务：检索 + 生成 + 记忆，一站式调用
 
     设计说明（生成后端，由 .env 的 LLM_BACKEND 切换）：
-    * ollama（默认）：本地 Ollama 运行开源模型（如 qwen2.5:7b），完全免费、离线、
+    * ollama（默认）：本地 Ollama 运行开源模型（如 deepseek-r1），完全免费、离线、
                       调用本机 GPU（RTX 4050），无需任何 API Key 或外网
     * siliconflow   ：硅基流动 SiliconFlow 在线API（OpenAI兼容），需 API Key
     * local_lora    ：本地 Qwen2.5-0.5B + LoRA 适配器（CPU 推理，需先训练）
     - ollama 默认走本机 GPU，回答质量与在线大模型相当，且零成本、可离线演示
-    - 检索/向量化同样本地化（Ollama bge-m3 嵌入），整套系统 100% 免费离线
+    - 检索/向量化同样本地化（Ollama nomic-embed-text 嵌入），整套系统 100% 免费离线
     """
 
 import logging
@@ -89,7 +89,7 @@ class RAGService:
         self.memory = conversation_memory
         self._client = None # 懒加载，避免没配API Key时初始化就报错
         self.backend = os.getenv("LLM_BACKEND", "ollama").lower()
-        self.llm_model = os.getenv("LLM_MODEL", "qwen2.5:7b")
+        self.llm_model = os.getenv("LLM_MODEL", "deepseek-r1")
         if self.backend == "ollama":
             logger.info(f" RAG服务初始化完成（本地 Ollama LLM: {self.llm_model}）")
         elif self.backend == "siliconflow":

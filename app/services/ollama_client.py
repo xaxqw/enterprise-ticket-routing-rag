@@ -3,11 +3,12 @@
 
 - 提供两类能力：embed（向量化，供检索/建库用）与 chat（对话生成，供问答用）
 - 底层调用本机 Ollama 服务（默认 http://localhost:11434）
-- 模型由 .env 指定：EMBEDDING_MODEL（如 bge-m3）、LLM_MODEL（如 qwen2.5:7b）
+- 模型由 .env 指定：EMBEDDING_MODEL（如 nomic-embed-text）、LLM_MODEL（如 deepseek-r1）
 - 全程不依赖外网 / 付费服务；Ollama 未启动或模型缺失时抛出清晰错误
 """
 
 import logging
+import re
 from app.core.log import get_logger
 logger = get_logger(__name__)
 
@@ -73,6 +74,13 @@ def ensure_model(model_name, timeout=600):
         )
 
 
+def _strip_think_tags(text):
+    """过滤 deepseek-r1 等推理模型自带的 <think>...</think> 思考链，只保留正式回答。"""
+    if not text:
+        return text
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
 def ollama_embed(texts, normalize=True, model=None, timeout=120):
     """
     批量向量化（调用 Ollama /api/embed）。
@@ -83,11 +91,11 @@ def ollama_embed(texts, normalize=True, model=None, timeout=120):
     import faiss
 
     if model is None:
-        model = os.getenv("EMBEDDING_MODEL", "bge-m3")
+        model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 
     valid_texts = [t for t in texts if t and t.strip()]
     if not valid_texts:
-        dim = int(os.getenv("EMBEDDING_DIM", 1024))
+        dim = int(os.getenv("EMBEDDING_DIM", "768"))
         return np.zeros((0, dim), dtype=np.float32), []
 
     # 分批（Ollama 单次输入过长易超时，按批调用）
@@ -124,10 +132,10 @@ def ollama_chat(messages, model=None, temperature=0.7, max_tokens=1024,
                 timeout=180, keep_alive="5m"):
     """
     对话生成（调用 Ollama /api/chat，OpenAI 风格 messages）。
-    返回模型回复文本。
+    返回模型回复文本；对 deepseek-r1 等推理模型会自动过滤 <think> 思考链。
     """
     if model is None:
-        model = os.getenv("LLM_MODEL", "qwen2.5:7b")
+        model = os.getenv("LLM_MODEL", "deepseek-r1")
     # 兜底：模型未就绪时尝试自动拉取
     try:
         resp = _post("/api/chat", {
@@ -137,7 +145,7 @@ def ollama_chat(messages, model=None, temperature=0.7, max_tokens=1024,
             "options": {"temperature": temperature, "num_predict": max_tokens},
             "keep_alive": keep_alive,
         }, timeout=timeout)
-        return (resp.get("message", {}).get("content") or "").strip()
+        return _strip_think_tags((resp.get("message", {}).get("content") or "").strip())
     except RuntimeError as e:
         if "not found" in str(e).lower() or "pull" in str(e).lower():
             ensure_model(model)
@@ -148,5 +156,5 @@ def ollama_chat(messages, model=None, temperature=0.7, max_tokens=1024,
                 "options": {"temperature": temperature, "num_predict": max_tokens},
                 "keep_alive": keep_alive,
             }, timeout=timeout)
-            return (resp.get("message", {}).get("content") or "").strip()
+            return _strip_think_tags((resp.get("message", {}).get("content") or "").strip())
         raise

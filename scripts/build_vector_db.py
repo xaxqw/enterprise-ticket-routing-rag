@@ -7,7 +7,7 @@
     或者指定目录：
     python scripts/build_vector_db.py --dir ./data/raw
 
-    注意：向量化默认走本地 Ollama（bge-m3），完全免费、离线，需先启动 Ollama 并拉取模型。
+    注意：向量化默认走本地 Ollama（nomic-embed-text），完全免费、离线，需先启动 Ollama 并拉取模型。
     """
 import os
 import sys
@@ -88,13 +88,13 @@ def main():
         tenant_dir = os.path.join("./data/raw", args.tenant)
         args.dir = tenant_dir if os.path.isdir(tenant_dir) else "./data/raw"
 
-    # 检查本地 Ollama（向量化走本地 bge-m3，完全免费/离线）
+    # 检查本地 Ollama（向量化走本地 nomic-embed-text，完全免费/离线）
     try:
         from app.services.ollama_client import ensure_model
-        ensure_model(os.getenv("EMBEDDING_MODEL", "bge-m3"), timeout=1200)
+        ensure_model(os.getenv("EMBEDDING_MODEL", "nomic-embed-text"), timeout=1200)
     except Exception as e:
         print(f" 错误：本地 Ollama 向量模型未就绪：{e}")
-        print(" 请先启动 Ollama 并拉取嵌入模型：ollama pull bge-m3")
+        print(" 请先启动 Ollama 并拉取嵌入模型：ollama pull nomic-embed-text")
         sys.exit(1)
 
     doc_dir = args.dir
@@ -165,9 +165,9 @@ def main():
         print(f" 语义去重跳过（{e}）")
 
     print(f"\n 总计 {len(all_chunks)} 个文本块，开始向量化入库...")
-    print(f" （调用本地 Ollama {os.getenv('EMBEDDING_MODEL', 'bge-m3')} 向量化，完全免费/离线）")
+    print(f" （调用本地 Ollama {os.getenv('EMBEDDING_MODEL', 'nomic-embed-text')} 向量化，完全免费/离线）")
 
-    # 向量入库（调用本地 Ollama bge-m3 向量化，完全免费/离线）
+    # 向量入库（调用本地 Ollama nomic-embed-text 向量化，完全免费/离线）
     vector_store.add_texts(all_chunks, all_metadata)
     # BM25 入库
     bm25.add_texts(all_chunks)

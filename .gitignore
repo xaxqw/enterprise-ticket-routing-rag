@@ -28,6 +28,8 @@ models/
   
 # 向量库  
 data/vector_db/  
+# 图片落盘（多模态以文搜图生成，可由模型重建，不入库）  
+data/image_store/  
   
 # 日志  
 logs/  

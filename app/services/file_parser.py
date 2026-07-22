@@ -76,6 +76,36 @@ class FileParser:
                 text += row_text + "\n"
         return text.strip()
 
+    def extract_page_images(self, file_path, out_dir, max_pages=None):
+        """
+        把 PDF 每页渲染成 PNG 存到 out_dir，返回 [(png_path, page_no), ...]。
+        用于「以文搜图」：页面图会落盘并由 image_index 生成描述后入库。
+        依赖 pdf2image + poppler（与扫描件 OCR 同依赖）；失败返回空列表。
+        """
+        from pdf2image import convert_from_path
+        os.makedirs(out_dir, exist_ok=True)
+        try:
+            images = convert_from_path(file_path, dpi=110)
+        except Exception as e:
+            logger.info(" PDF 页面渲染失败（%s），跳过图片提取", e)
+            return []
+        result = []
+        for i, img in enumerate(images, 1):
+            if max_pages and i > max_pages:
+                break
+            p = os.path.join(out_dir, f"page_{i}.png")
+            try:
+                img.save(p, "PNG")
+                result.append((p, i))
+            except Exception as e:
+                logger.info(" 保存第 %s 页图片失败：%s", i, e)
+        return result
+
+    @staticmethod
+    def is_image_file(file_path):
+        """判断是否为可直接入库的图片文件"""
+        return os.path.splitext(file_path)[1].lower() in (".png", ".jpg", ".jpeg")
+
     def auto_parse(self, file_path):
         """
         自动识别文件格式并解析

@@ -9,6 +9,7 @@ load_dotenv()
 
 VECTOR_DB_ROOT = os.getenv("VECTOR_DB_PATH", "./data/vector_db")
 DOC_ROOT = os.getenv("DOCUMENT_STORAGE_PATH", "./data/raw")
+IMAGE_STORE_ROOT = os.getenv("IMAGE_STORE_PATH", "./data/image_store")
 
 
 def safe_tenant_id(tenant_id: str) -> str:
@@ -36,5 +37,12 @@ def bm25_path(tenant_id: str) -> str:
 def tenant_doc_dir(tenant_id: str) -> str:
     """某租户的上传文档目录"""
     d = os.path.join(DOC_ROOT, safe_tenant_id(tenant_id))
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def image_store_dir(tenant_id: str) -> str:
+    """某租户的图片落盘目录（建库时把 PDF 页面/上传图片转存到这里）"""
+    d = os.path.join(IMAGE_STORE_ROOT, safe_tenant_id(tenant_id))
     os.makedirs(d, exist_ok=True)
     return d

@@ -123,6 +123,13 @@ def check_ollama():
             return False
     else:
         ok(f"所需模型已就绪（向量：{embed_model}，对话：{llm_model}）")
+        # 视觉模型（多模态图片理解，可选）：缺失仅提示，不阻断启动
+        vision_model = os.getenv("VISION_MODEL", "llava")
+        if vision_model not in names and not any(
+            n.startswith(vision_model + ":") or n == vision_model for n in names
+        ):
+            warn(f"视觉模型 {vision_model} 未安装；图片将以 OCR/文件名 描述入库"
+                 f"（仍可问文字搜图，效果较弱）。如需更强图片理解：ollama pull {vision_model}")
     return True
 
 

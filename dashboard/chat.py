@@ -37,6 +37,19 @@ if "history_loaded" not in st.session_state:
     st.session_state.history_loaded = False
 
 
+def render_images(images):
+    """渲染「以文搜图」返回的图片列表（图片已落盘为绝对路径，Streamlit 直接读取）"""
+    if not images:
+        return
+    st.subheader(" 相关图片")
+    for im in images:
+        p = im.get("path")
+        if p and os.path.exists(p):
+            st.image(p, caption=im.get("caption", ""), use_column_width=True)
+        else:
+            st.caption(f"（图片缺失：{p}）")
+
+
 def call_chat_history():
     """从后端拉取当前用户的历史问答（按用户隔离）"""
     headers = {"Authorization": f"Bearer {st.session_state.token}"}
@@ -58,6 +71,7 @@ def load_history():
             "content": m.get("content", ""),
             "id": m.get("id"),
             "references": m.get("references", []),
+            "images": m.get("images", []),
         }
         for m in msgs
     ]
@@ -236,6 +250,8 @@ for msg in st.session_state.messages:
                     st.progress(score_pct / 100, text=f"相关度 {score_pct}%")
                     st.caption(ref.get("text", ""))
                     st.divider()
+        # 以文搜图：渲染命中的图片
+        render_images(msg.get("images", []))
         # 单条删除按钮（删提问会连带其回答），放在引用区外部避免重复 key
         if msg.get("id"):
             label = " 删除此问题" if msg["role"] == "user" else " 删除此回答"
@@ -272,6 +288,9 @@ if query := st.chat_input("请输入你的问题..."):
                             st.progress(score_pct / 100, text=f"相关度 {score_pct}%")
                             st.caption(ref.get("text", ""))
                             st.divider()
+
+                # 以文搜图：渲染命中的图片
+                render_images(result.get("images", []))
 
                 # 同步到后端历史并获取服务端消息 id（保证可删除 / 可溯源）
                 if result:

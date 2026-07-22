@@ -99,6 +99,7 @@ class QueryResponse(BaseModel):
     answer: str
     query_type: str
     references: List[Reference]
+    images: List[dict] = []
     hallucination_level: str
     cache_hit: bool = False
 
@@ -136,6 +137,7 @@ async def rag_query(request: QueryRequest, current_user=Depends(get_current_user
             {"text": r.get("text", ""), "score": r.get("score", 0.0), "metadata": r.get("metadata", {})}
             for r in res.get("sources", [])
         ],
+        "images": res.get("images", []),
         "hallucination_level": hallucination_level,
         "cache_hit": False,
     }

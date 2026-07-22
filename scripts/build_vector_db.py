@@ -140,6 +140,15 @@ def main():
             all_chunks.extend(chunks)
             all_metadata.extend(metadata)
 
+        # 多模态：提取该文档里的图片并入库（以文搜图）
+        try:
+            from app.services.image_index import ingest_document_images
+            img_n = ingest_document_images(doc_path, tenant, vector_store, bm25)
+            if img_n:
+                print(f" 图片入库：{img_n} 张（来自 {os.path.basename(doc_path)}）")
+        except Exception as e:
+            print(f" 图片入库跳过（{e}）")
+
     if not all_chunks:
         print("\n 没有提取到任何有效文本块，请检查文档内容")
         sys.exit(1)

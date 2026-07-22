@@ -128,6 +128,49 @@ def ollama_embed(texts, normalize=True, model=None, timeout=120):
     return arr, valid_texts
 
 
+def ollama_vision_caption(images, prompt, model=None, timeout=180, keep_alive="5m"):
+    """
+    多模态图像描述（调用 Ollama /api/generate，给图片生成文字描述）。
+    images: list[str] 本地图片路径；prompt: 中文指令（如「请描述这张图片的内容」）
+    返回描述文本。底层走本机 Ollama 视觉模型（如 llava / minicpm-v），免费/离线。
+    """
+    if model is None:
+        model = os.getenv("VISION_MODEL", "llava")
+    if not images:
+        return ""
+    import base64
+    b64_imgs = []
+    for img_path in images:
+        try:
+            with open(img_path, "rb") as f:
+                b64_imgs.append(base64.b64encode(f.read()).decode("utf-8"))
+        except Exception as e:
+            logger.warning("读取图片失败 %s：%s", img_path, e)
+    if not b64_imgs:
+        return ""
+    try:
+        resp = _post("/api/generate", {
+            "model": model,
+            "prompt": prompt,
+            "images": b64_imgs,
+            "stream": False,
+            "keep_alive": keep_alive,
+        }, timeout=timeout)
+        return (resp.get("response") or "").strip()
+    except RuntimeError as e:
+        if "not found" in str(e).lower() or "pull" in str(e).lower():
+            ensure_model(model)
+            resp = _post("/api/generate", {
+                "model": model,
+                "prompt": prompt,
+                "images": b64_imgs,
+                "stream": False,
+                "keep_alive": keep_alive,
+            }, timeout=timeout)
+            return (resp.get("response") or "").strip()
+        raise
+
+
 def ollama_chat(messages, model=None, temperature=0.7, max_tokens=1024,
                 timeout=180, keep_alive="5m"):
     """

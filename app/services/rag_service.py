@@ -282,9 +282,9 @@ class RAGService:
         try:
             contexts = self.searcher.search(user_query, top_k=top_k, rerank_top_k=top_k)
         except RuntimeError as e:
-            return {"answer": f" 无法生成回答：{e}", "references": []}
+            return {"answer": f" 无法生成回答：{e}", "references": [], "images": []}
         except Exception as e:
-            return {"answer": f" 检索环节出错：{e}", "references": []}
+            return {"answer": f" 检索环节出错：{e}", "references": [], "images": []}
 
         # 2. 获取历史对话
         history = self.memory.get_history_as_list(session_id, limit=6)
@@ -315,8 +315,25 @@ class RAGService:
             {"text": c["text"][:200], "score": c.get("final_score", 0.0), "metadata": c.get("metadata", {})}
             for c in contexts
         ]
-        self.memory.add_message(session_id, "assistant", answer, extra={"references": references})
+        # 5.5 收集命中块里带 image_path 的图片（以文搜图）：去重后作为独立图片结果返回
+        images = []
+        seen_img = set()
+        for c in contexts:
+            meta = c.get("metadata", {})
+            ip = meta.get("image_path")
+            if ip and os.path.exists(ip) and ip not in seen_img:
+                seen_img.add(ip)
+                images.append({
+                    "path": ip,
+                    "source": meta.get("source", ""),
+                    "page": meta.get("page"),
+                    "caption": c.get("text", "")[:200],
+                    "score": c.get("final_score", 0.0),
+                })
+        self.memory.add_message(session_id, "assistant", answer,
+                                 extra={"references": references, "images": images})
         return {
             "answer": answer,
             "references": references,
+            "images": images,
         }

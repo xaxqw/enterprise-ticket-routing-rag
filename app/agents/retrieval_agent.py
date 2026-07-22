@@ -21,6 +21,7 @@ class RetrievalAgent:
         return {
             "answer": result["answer"],
             "sources": result["references"],
+            "images": result.get("images", []),
             "agent": "retrieval"
         }
 

@@ -103,8 +103,19 @@ def process_document_task(self, file_path, tenant_id="default"):
         if n == 0:
             return {"status": "failed", "error": "未提取到有效文本块", "chunks_added": 0}
 
+        # 多模态：提取文档图片并入库（以文搜图），失败不阻塞主流程
+        images_added = 0
+        try:
+            from app.services.image_index import ingest_document_images
+            images_added = ingest_document_images(file_path, tenant_id)
+            if images_added:
+                logger.info(f" 图片入库完成：{images_added} 张")
+        except Exception as e:
+            logger.info(f" 图片入库跳过（{e}）")
+
         return {"status": "success", "file_path": file_path,
-                "tenant_id": safe_tenant_id(tenant_id), "chunks_added": n}
+                "tenant_id": safe_tenant_id(tenant_id), "chunks_added": n,
+                "images_added": images_added}
     except Exception as e:
         traceback.print_exc()
         return {"status": "error", "error": str(e), "chunks_added": 0}
@@ -159,6 +170,12 @@ def rebuild_tenant_index_task(self, tenant_id="default"):
                 text = parser.auto_parse(fpath)
                 if text and len(text) >= 20:
                     total += _run_pipeline(self, text, fname, tenant_id)
+                    # 多模态：同步重建图片索引
+                    try:
+                        from app.services.image_index import ingest_document_images
+                        ingest_document_images(fpath, tenant_id)
+                    except Exception as e:
+                        logger.info(f" 重建图片索引跳过 {fname}：{e}")
             except Exception as e:
                 logger.info(f" 重建时跳过 {fname}：{e}")
 

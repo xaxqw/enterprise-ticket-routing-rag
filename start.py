@@ -128,16 +128,17 @@ def check_ollama():
 
 def check_vector_db():
     """检查向量库是否已建立，没有就自动建库"""
-    faiss_path = "./data/vector_db/faiss_index.pkl"
-    if os.path.exists(faiss_path):
+    # 索引按租户隔离存放到 data/vector_db/{tenant}/，默认租户为 default
+    faiss_path = "./data/vector_db/default/faiss_index.pkl"
+    if os.path.exists(faiss_path) and os.path.getsize(faiss_path) > 0:
         ok("向量知识库已存在")
         return True
 
     warn("向量知识库为空，开始自动建库...")
-    print(" （会用本地 Ollama 向量化 data/raw 下的文档，可能需要几十秒）")
+    print(" （会用本地 Ollama 向量化 data/raw/default 下的文档，可能需要几十秒）")
     print()
     build_script = os.path.join(PROJECT_DIR, "scripts", "build_vector_db.py")
-    result = subprocess.call([sys.executable, build_script, "--dir", "./data/raw"])
+    result = subprocess.call([sys.executable, build_script, "--dir", "./data/raw/default"])
     if result != 0:
         err("建库失败，请检查文档和 API Key")
         return False

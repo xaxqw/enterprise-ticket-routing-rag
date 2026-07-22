@@ -67,11 +67,14 @@ def check_redis():
         warn("redis-py 未安装，跳过检查")
         return True
     except Exception:
-        err("Redis 未运行！请先启动 Redis：")
-        print(" 方式1：打开 cmd 执行 net start Redis")
-        print(" 方式2：双击 Redis 安装目录下的 redis-server.exe")
-        print(" 方式3：如果用 Docker，执行 docker run -d -p 6379:6379 redis")
-        return False
+        # Redis 不可用时，服务仍可运行（会话历史与缓存自动降级为内存模式），
+        # 因此只警告、不阻断启动。用户如需持久化历史，再手动启动 Redis 即可。
+        warn("Redis 未运行！会话历史与缓存将降级为内存模式（重启服务后历史丢失），问答功能不受影响。")
+        print("   如需持久化历史，请先启动 Redis：")
+        print("     方式1：打开 cmd 执行  net start Redis")
+        print("     方式2：双击 Redis 安装目录下的 redis-server.exe")
+        print("     方式3：Docker 执行  docker run -d -p 6379:6379 redis")
+        return True
 
 
 def check_ollama():

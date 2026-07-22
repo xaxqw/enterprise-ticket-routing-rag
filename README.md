@@ -19,6 +19,7 @@
 | **双/三 LLM 后端** | 本地 Ollama（默认，免费离线/GPU）+ 在线 SiliconFlow（可选）+ 本地 LoRA（可选私有化） |
 | **Docker 部署** | docker-compose 一键编排 redis / rag-api / celery-worker / frontend 四服务，带健康检查 |
 | **自动化评测** | 检索层 ablation（确定性）+ 生成层 RAGAS 风格 LLM-as-Judge 评测，输出 JSON + HTML 报告 |
+| **多模态「以文搜图」** | 支持上传带图 PDF / 图片，问文字问题返回对应图片：多模态模型生成图片描述进入同一向量空间（OCR 兜底），离线免费 |
 
 ---
 
@@ -60,6 +61,7 @@
 - **前端**：Streamlit + Plotly
 - **检索**：FAISS 向量索引（IndexFlatIP，检索用归一化向量精确内积，与 FAISS 余弦检索数学等价）+ rank-bm25 + jieba（中文分词）+ 本地 RRF 重排
 - **模型（本地，默认）**：Ollama 运行 `deepseek-r1`（LLM，推理模型，GPU 加速）+ `nomic-embed-text`（Embedding，768 维）
+- **多模态（图像理解，可选）**：Ollama 运行 `llava`（或 `minicpm-v`）为图片生成中文描述，支撑「以文搜图」；未安装则自动用 PaddleOCR（图中文字）+ 文件名兜底
 - **模型（在线，可选）**：硅基流动 Qwen2.5 系列（需 API Key）
 - **微调**：PEFT + Transformers（Qwen2.5-0.5B，CPU LoRA）
 - **异步**：Celery + Redis
@@ -78,6 +80,7 @@
 # 2) 拉取本地模型（只需一次，后续永久离线可用）
 ollama pull nomic-embed-text   # 向量化（Embedding，768 维）
 ollama pull deepseek-r1        # 问答生成（LLM，推理模型，自动用 GPU）
+ollama pull llava             # 多模态图像理解（可选，支撑「以文搜图」；不装也能跑，OCR 兜底）
 
 # 3) 项目依赖
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -125,7 +128,7 @@ streamlit run dashboard/chat.py --server.port 8501
 
 > **文档上传窗口**：`python start.py` 已自动拉起后端 / 前端 / Celery worker 三个服务。
 > 打开 `http://localhost:8501` 后，左侧导航会出现 **「上传文档」** 页面：
-> 选文件（PDF/Word/Excel/TXT/Markdown/CSV/HTML，可多选）→ 上传 → 后台自动解析/清洗/分块/向量化/建索引 →
+> 选文件（PDF / Word / Excel / TXT / Markdown / CSV / HTML / 图片，可多选；PDF 含图会自动提取图片入检索）→ 上传 → 后台自动解析/清洗/分块/向量化/建索引 →
 > 进度实时可见，完成后即可在「聊天」页直接问到这份文档。删除文档会触发该租户索引自动重建。
 
 访问：前端 http://localhost:8501 ，后端文档 http://localhost:8000/docs
@@ -198,7 +201,30 @@ python scripts/auto_evaluation.py
 
 ---
 
-## 九、主要 API
+## 九、多模态「以文搜图」（支持带图 PDF / 问文字返回图片）
+
+平台支持**上传带图 PDF 与图片文件，并用语义文字问题召回对应图片**——全部本地、离线、免费。
+
+**能力**
+- 上传带图 PDF：建库时把每页渲染为图片落盘 `data/image_store/{tenant}/`，逐页生成中文描述；单独 `.png/.jpg/.jpeg` 也可直接入库。
+- 问文字 → 返回图片：问答命中带图的描述块后，前端在回答下方渲染「相关图片」区，直接展示原图。
+- 三级兜底：① Ollama 多模态模型（默认 `llava`，可选 `minicpm-v`）生成图片中文描述；② PaddleOCR 提取图中文字；③ 文件名 + 页码兜底。任意环境都不会建库失败。
+
+**实现要点（为何不用 CLIP）**
+Ollama `/api/embed` 仅支持文本、不支持图像编码，因此无法用 clip 对图直接 embed 进同一向量空间。本方案改用「多模态模型给图片生成描述 → 描述作为文本块进入现有 `nomic-embed-text` 向量 / BM25 检索空间」：图片描述与文档文字天然处于同一向量空间，问文字即可召回对应图片（等价于跨模态检索）。图片原图落盘保留，检索命中后按路径回显。
+
+**使用**
+```bash
+# 可选：安装多模态模型以获得最佳图片理解（未装也能跑，自动降级 OCR / 文件名兜底）
+ollama pull llava
+```
+- 上传：前端「上传文档」支持 PDF / 图片；上传后自动提取图片、生成描述并入检索索引。
+- 提问示例：「XX 的架构图长什么样」「某页在讲什么」→ 回答下方出现「相关图片」区。
+- 渲染图片所需的 poppler（PDF → 图片）与 PaddleOCR（图中文字兜底）为懒加载依赖，仅在用到时启用。
+
+---
+
+## 十、主要 API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -226,7 +252,7 @@ python scripts/auto_evaluation.py
 
 ---
 
-## 十、测试与持续集成
+## 十一、测试与持续集成
 
 测试覆盖数据流水线、检索、多智能体、缓存与鉴权、API 与端到端链路。
 
@@ -257,7 +283,7 @@ pytest -q   # 39 项，全部离线、无需真实 Redis / 在线 API
 
 ---
 
-## 十一、目录结构
+## 十二、目录结构
 
 ```
 RAG/
@@ -272,7 +298,8 @@ RAG/
 ├── tests/                      # pytest 测试
 ├── data/
 │   ├── raw/{tenant}/           # 各租户原始文档
-│   └── vector_db/{tenant}/      # 各租户 FAISS + BM25 索引
+│   ├── vector_db/{tenant}/      # 各租户 FAISS + BM25 索引
+│   └── image_store/{tenant}/    # 各租户图片落盘（以文搜图，已 gitignore）
 ├── requirements.txt            # 运行依赖
 ├── requirements-finetune.txt   # 微调依赖
 ├── Dockerfile / docker-compose.yml

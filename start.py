@@ -82,8 +82,8 @@ def check_ollama():
     load_dotenv()
 
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-    embed_model = os.getenv("EMBEDDING_MODEL", "bge-m3")
-    llm_model = os.getenv("LLM_MODEL", "qwen2.5:7b")
+    embed_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+    llm_model = os.getenv("LLM_MODEL", "deepseek-r1")
 
     info("检查本地 Ollama 服务...")
     try:

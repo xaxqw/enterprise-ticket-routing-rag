@@ -102,6 +102,7 @@ class QueryResponse(BaseModel):
     images: List[dict] = []
     hallucination_level: str
     cache_hit: bool = False
+    no_match: bool = False
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -140,6 +141,7 @@ async def rag_query(request: QueryRequest, current_user=Depends(get_current_user
         "images": res.get("images", []),
         "hallucination_level": hallucination_level,
         "cache_hit": False,
+        "no_match": res.get("no_match", False),
     }
     # 4. 写缓存
     _cache.set(request.query, payload, request.top_k, tenant_id)
@@ -152,6 +154,7 @@ class AgentResponse(BaseModel):
     intent: Optional[str] = None
     sources: List[dict] = []
     hallucination_check: dict = {}
+    no_match: bool = False
 
 
 @router.post("/agent", response_model=AgentResponse)
@@ -169,6 +172,7 @@ async def agent_query(request: QueryRequest, current_user=Depends(get_current_us
         intent=result.get("intent"),
         sources=result.get("sources", []) or [],
         hallucination_check=result.get("hallucination_check", {}) or {},
+        no_match=result.get("no_match", False),
         )
 
 

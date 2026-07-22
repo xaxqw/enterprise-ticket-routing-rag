@@ -50,6 +50,14 @@ def render_images(images):
             st.caption(f"（图片缺失：{p}）")
 
 
+def render_answer(content, no_match=False):
+    """渲染助手回答；未检索到相关内容时用醒目告警样式，明确告知已拒答。"""
+    if no_match:
+        st.warning(content)
+    else:
+        st.markdown(content)
+
+
 def call_chat_history():
     """从后端拉取当前用户的历史问答（按用户隔离）"""
     headers = {"Authorization": f"Bearer {st.session_state.token}"}
@@ -72,6 +80,7 @@ def load_history():
             "id": m.get("id"),
             "references": m.get("references", []),
             "images": m.get("images", []),
+            "no_match": m.get("no_match", False),
         }
         for m in msgs
     ]
@@ -237,7 +246,7 @@ if not st.session_state.messages:
 # 显示历史对话
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        render_answer(msg["content"], msg.get("no_match", False))
         # 显示参考资料
         if msg.get("references"):
             with st.expander(f" 参考资料（{len(msg['references'])} 条）"):
@@ -276,7 +285,7 @@ if query := st.chat_input("请输入你的问题..."):
                 answer = result.get("answer", "（无回答）")
                 refs = result.get("references", [])
 
-                st.markdown(answer)
+                render_answer(answer, result.get("no_match", False))
 
                 if refs:
                     with st.expander(f" 参考资料（{len(refs)} 条）"):

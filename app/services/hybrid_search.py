@@ -63,7 +63,7 @@ class HybridSearcher:
         """合并两路结果，相同文本加权求和"""
         text_map = {}
 
-        # 加入向量检索的结果
+        # 加入向量检索的结果（保留原始余弦相似度 raw_vector_score，供相关性闸门判断“是否真有匹配”）
         for r in vector_results:
             key = r["text"][:100] # 用前100字当key，近似去重
             if key not in text_map:
@@ -71,9 +71,11 @@ class HybridSearcher:
                     "text": r["text"],
                     "metadata": r.get("metadata", {}),
                     "vector_score": r["norm_score"],
-                    "bm25_score": 0.0
+                    "bm25_score": 0.0,
+                    "raw_vector_score": r.get("score", 0.0),
+                    "raw_bm25_score": 0.0,
                 }
-        # 加入BM25的结果
+        # 加入BM25的结果（保留原始 BM25 分数 raw_bm25_score）
         for r in bm25_results:
             key = r["text"][:100]
             if key not in text_map:
@@ -81,10 +83,13 @@ class HybridSearcher:
                     "text": r["text"],
                     "metadata": {},
                     "vector_score": 0.0,
-                    "bm25_score": r["norm_score"]
+                    "bm25_score": r["norm_score"],
+                    "raw_vector_score": 0.0,
+                    "raw_bm25_score": r.get("score", 0.0),
                 }
             else:
                 text_map[key]["bm25_score"] = r["norm_score"]
+                text_map[key]["raw_bm25_score"] = r.get("score", 0.0)
         # 计算加权总分
         merged = list(text_map.values())
         for r in merged:

@@ -22,6 +22,7 @@ class RetrievalAgent:
             "answer": result["answer"],
             "sources": result["references"],
             "images": result.get("images", []),
+            "no_match": result.get("no_match", False),
             "agent": "retrieval"
         }
 

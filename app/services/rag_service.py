@@ -286,6 +286,31 @@ class RAGService:
         except Exception as e:
             return {"answer": f" 检索环节出错：{e}", "references": [], "images": []}
 
+        # 1.5 相关性闸门：检索不到任何相关内容时直接拒答，避免大模型“硬答”编造
+        # 说明：final_score 是 RRF 排名融合结果（量级约 0.03，仅反映排名先后），
+        # 且向量/BM25 分数都按查询做了 min-max 归一化，绝对值不能用于阈值判断；
+        # 因此此处使用「原始」分数（向量余弦相似度 / BM25 原始分）做判断。
+        vec_thr = float(os.getenv("RELEVANCE_VECTOR_THRESHOLD", "0.30"))
+        bm25_thr = float(os.getenv("RELEVANCE_BM25_THRESHOLD", "1.0"))
+        best_vec = max((c.get("raw_vector_score", 0.0) for c in contexts), default=0.0)
+        best_bm25 = max((c.get("raw_bm25_score", 0.0) for c in contexts), default=0.0)
+        if not contexts or (best_vec < vec_thr and best_bm25 < bm25_thr):
+            answer = (
+                "抱歉，知识库中未检索到与您问题相关的内容，无法回答。"
+                "请确认相关文档已上传，或换一种问法。"
+            )
+            logger.info(
+                "相关性闸门拦截：未匹配（best_vec=%.3f <%.3f, best_bm25=%.3f <%.3f），直接拒答",
+                best_vec, vec_thr, best_bm25, bm25_thr,
+            )
+            # 仍记入对话历史（标记为 no_match，便于前端区分展示与回看）
+            self.memory.add_message(session_id, "user", user_query)
+            self.memory.add_message(
+                session_id, "assistant", answer,
+                extra={"references": [], "images": [], "no_match": True},
+            )
+            return {"answer": answer, "references": [], "images": [], "no_match": True}
+
         # 2. 获取历史对话
         history = self.memory.get_history_as_list(session_id, limit=6)
 

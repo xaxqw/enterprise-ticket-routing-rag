@@ -2,7 +2,7 @@
 
 一个面向企业知识库场景的 **RAG（检索增强生成）问答平台**，覆盖从多源数据流水线、混合检索、多智能体调度、异步任务、缓存、多租户权限，到自动化评测的完整链路。
 
-> **默认完全本地化、免费、离线运行**：向量化用本机 Ollama 的 `bge-m3`、重排用本地 RRF（Reciprocal Rank Fusion）、生成用本机 Ollama 的 `qwen2.5:7b`（自动调用 RTX 4050 GPU）。整套系统**不依赖任何付费 API、不需要外网、零 token 成本**。在线 SiliconFlow API 作为**可选**后端保留，按需切换。
+> **默认完全本地化、免费、离线运行**：向量化用本机 Ollama 的 `nomic-embed-text`、重排用本地 RRF（Reciprocal Rank Fusion）、生成用本机 Ollama 的 `deepseek-r1`（自动调用 RTX 4050 GPU）。整套系统**不依赖任何付费 API、不需要外网、零 token 成本**。在线 SiliconFlow API 作为**可选**后端保留，按需切换。
 
 ---
 
@@ -47,7 +47,7 @@
                       │
         ┌─────────────▼──────────────┐   ┌──────────────────────────────┐
         │  租户隔离索引               │   │  本地 Ollama（免费/离线/GPU）   │
-        │  data/vector_db/{tenant}/  │   │  bge-m3 向量化 + qwen2.5:7b 生成 │
+        │  data/vector_db/{tenant}/  │   │  nomic-embed-text 向量化 + deepseek-r1 生成 │
         │  faiss + bm25              │   │  （可选 SiliconFlow 在线兜底）   │
         └────────────────────────────┘   └──────────────────────────────┘
 ```
@@ -59,7 +59,7 @@
 - **后端**：FastAPI + Uvicorn
 - **前端**：Streamlit + Plotly
 - **检索**：FAISS 向量索引（IndexFlatIP，检索用归一化向量精确内积，与 FAISS 余弦检索数学等价）+ rank-bm25 + jieba（中文分词）+ 本地 RRF 重排
-- **模型（本地，默认）**：Ollama 运行 `qwen2.5:7b`（LLM，GPU 加速）+ `bge-m3`（Embedding，1024 维，多语言/中文 SOTA）
+- **模型（本地，默认）**：Ollama 运行 `deepseek-r1`（LLM，推理模型，GPU 加速）+ `nomic-embed-text`（Embedding，768 维）
 - **模型（在线，可选）**：硅基流动 Qwen2.5 系列（需 API Key）
 - **微调**：PEFT + Transformers（Qwen2.5-0.5B，CPU LoRA）
 - **异步**：Celery + Redis
@@ -76,8 +76,8 @@
 ```bash
 # 1) 安装 Ollama（本地大模型运行时，免费）：https://ollama.com 下载 Windows 版并安装
 # 2) 拉取本地模型（只需一次，后续永久离线可用）
-ollama pull bge-m3        # 向量化（Embedding）
-ollama pull qwen2.5:7b    # 问答生成（LLM，自动用 GPU）
+ollama pull nomic-embed-text   # 向量化（Embedding，768 维）
+ollama pull deepseek-r1        # 问答生成（LLM，推理模型，自动用 GPU）
 
 # 3) 项目依赖
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -91,8 +91,8 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ```dotenv
 LLM_BACKEND=ollama          # ollama(默认,免费) / siliconflow(可选) / local_lora
-LLM_MODEL=qwen2.5:7b        # Ollama 本地模型名
-EMBEDDING_MODEL=bge-m3      # Ollama 本地嵌入模型
+LLM_MODEL=deepseek-r1        # Ollama 本地模型名（推理模型）
+EMBEDDING_MODEL=nomic-embed-text   # Ollama 本地嵌入模型（768 维）
 OLLAMA_HOST=http://localhost:11434
 # 可选：仅在 LLM_BACKEND=siliconflow 时需要
 # SILICONFLOW_API_KEY=

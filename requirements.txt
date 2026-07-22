@@ -39,6 +39,8 @@ python-docx==1.1.2               # Word 解析
 openpyxl==3.1.5                  # Excel 解析
 beautifulsoup4==4.12.3           # 网页/URL 数据源解析
 lxml==5.3.0                      # bs4 解析后端，速度快
+paddlepaddle==2.6.2              # PaddleOCR 底层推理引擎（扫描件/图片型 PDF OCR）
+paddleocr==2.9.1                 # 中文 OCR（图片型 PDF、以文搜图文字兜底）
 
 # ---- 前端可视化（Streamlit 问答 + 监控面板）----
 streamlit==1.38.0

@@ -158,16 +158,11 @@ def ollama_vision_caption(images, prompt, model=None, timeout=180, keep_alive="5
         }, timeout=timeout)
         return (resp.get("response") or "").strip()
     except RuntimeError as e:
+        # 视觉模型缺失时不自动拉取（避免 4.5GB 下载卡住建库/入库流程），
+        # 由上层 image_caption 降级到 OCR 或文件名兜底。
         if "not found" in str(e).lower() or "pull" in str(e).lower():
-            ensure_model(model)
-            resp = _post("/api/generate", {
-                "model": model,
-                "prompt": prompt,
-                "images": b64_imgs,
-                "stream": False,
-                "keep_alive": keep_alive,
-            }, timeout=timeout)
-            return (resp.get("response") or "").strip()
+            logger.info("视觉模型 %s 未安装，跳过自动拉取，交由 OCR/文件名兜底", model)
+            return ""
         raise
 
 

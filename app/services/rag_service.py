@@ -166,7 +166,8 @@ class RAGService:
             "你是一个专业的知识问答助手。请根据用户提供的参考资料回答问题。\n"
             "要求：\n"
             "1. 优先使用参考资料中的内容回答；\n"
-            "2. 如果参考资料中没有答案，请如实说明，不要编造；\n"
+            "2. 如果参考资料中没有答案，或参考资料中的主体与问题所问主体不一致，"
+            "请如实说明无法回答，不要套用其他主体的信息来编造；\n"
             "3. 回答要简洁、准确、有条理；\n"
             "4. 年份、金额、人数、占比等数字必须严格照抄参考资料原文对应字段，"
             "不得改写、推算，也不得挪用其他字段的数字（例如不得把成立年份当作员工人数）；\n"
@@ -272,6 +273,102 @@ class RAGService:
         answer = contam_pat.sub(_recover, answer)
         return answer
 
+    @staticmethod
+    def _extract_query_keywords(query):
+        """
+        从查询中提取可用于匹配的关键词。
+        保留长度>=2 的名词/动词/人名等实词，过滤常见停用词与虚词。
+        """
+        import jieba.posseg as pseg
+        # 常见停用词（疑问词、虚词、动作动词等）
+        stop_words = {
+            "的", "是", "在", "和", "了", "有", "我", "他", "她", "它", "你",
+            "请", "问", "什么", "怎么", "如何", "为什么", "吗", "呢", "吧", "啊",
+            "介绍", "描述", "告诉", "给", "关于", "对于", "从", "到", "向", "为",
+            "与", "及", "等", "这", "那", "这些", "那些", "一个", "一种", "一些",
+            "一下", "知道", "了解", "查询", "查看", "显示", "列出", "说说", "讲讲",
+            "多少", "几", "谁", "哪", "哪个", "哪些", "怎样", "多大", "多久",
+        }
+        keywords = []
+        for word, flag in pseg.cut(query):
+            w = word.strip()
+            if len(w) < 2 or w in stop_words:
+                continue
+            # 保留名词(n)、动词(v)、人名(nr)、地名(ns)、机构名(nt)、专有名词(nz)
+            if flag.startswith(("n", "v", "nr", "ns", "nt", "nz")):
+                keywords.append(w)
+        # 去重并保持顺序
+        seen = set()
+        unique = []
+        for k in keywords:
+            if k not in seen:
+                seen.add(k)
+                unique.append(k)
+        return unique
+
+    @staticmethod
+    def _extract_query_entities(query):
+        """
+        提取查询中的核心实体（目前主要识别人名 nr）。
+        用于实体一致性过滤，防止"张三的荣誉"召回"李四的荣誉"后硬答。
+        """
+        import jieba.posseg as pseg
+        entities = []
+        for word, flag in pseg.cut(query):
+            w = word.strip()
+            if flag == "nr" and len(w) >= 2:
+                entities.append(w)
+        return entities
+
+    @staticmethod
+    def _entity_match(text, entity):
+        """
+        实体匹配：完整匹配，或前缀匹配（取实体前两个字符，兼容 OCR 误差）。
+        例如"徐安旭"可匹配"徐安旭"或"徐安同学"。
+        """
+        if entity in text:
+            return True
+        prefix = entity[:2]
+        if len(prefix) >= 2 and prefix in text:
+            return True
+        return False
+
+    @staticmethod
+    def _filter_contexts_by_keywords(contexts, keywords):
+        """
+        关键词一致性后过滤：要求每个上下文至少包含一个查询关键词。
+        如果查询没有提取到关键词（如纯虚词查询），则原样返回。
+        返回 (filtered_contexts, matched_keywords_set)
+        """
+        if not keywords:
+            return contexts, set()
+        filtered = []
+        matched = set()
+        for c in contexts:
+            text = c.get("text", "")
+            # 任一关键词在文本中出现即保留
+            hits = [k for k in keywords if k in text]
+            if hits:
+                filtered.append(c)
+                matched.update(hits)
+        return filtered, matched
+
+    @staticmethod
+    def _filter_contexts_by_entities(contexts, entities):
+        """
+        实体一致性后过滤：若查询包含人名等核心实体，
+        要求上下文必须包含该实体（或前缀），否则过滤。
+        返回过滤后的 contexts。
+        """
+        if not entities:
+            return contexts
+        filtered = []
+        for c in contexts:
+            text = c.get("text", "")
+            if all(RAGService._entity_match(text, e) for e in entities):
+                filtered.append(c)
+        return filtered
+
     def query(self, session_id, user_query, top_k=5):
         """
             主问答函数
@@ -310,6 +407,51 @@ class RAGService:
                 extra={"references": [], "images": [], "no_match": True},
             )
             return {"answer": answer, "references": [], "images": [], "no_match": True}
+
+        # 1.6 实体一致性后过滤：若查询包含人名等核心实体，
+        # 要求召回结果必须包含对应实体，避免“张三丰的荣誉证书”召回“徐安旭的荣誉证书”后硬答。
+        entities = self._extract_query_entities(user_query)
+        if entities:
+            entity_filtered = self._filter_contexts_by_entities(contexts, entities)
+            if not entity_filtered:
+                answer = (
+                    "抱歉，知识库中未检索到与您问题相关的内容，无法回答。"
+                    "请确认相关文档已上传，或换一种问法。"
+                )
+                logger.info(
+                    "实体一致性拦截：查询实体 %s 在召回结果中均未命中，直接拒答",
+                    entities,
+                )
+                self.memory.add_message(session_id, "user", user_query)
+                self.memory.add_message(
+                    session_id, "assistant", answer,
+                    extra={"references": [], "images": [], "no_match": True},
+                )
+                return {"answer": answer, "references": [], "images": [], "no_match": True}
+            contexts = entity_filtered
+
+        # 1.7 关键词一致性后过滤：要求召回块至少包含查询中的一个实词关键词，
+        # 避免把毫不相干的文档（如校园招聘流程）也传给大模型。
+        keywords = self._extract_query_keywords(user_query)
+        filtered_contexts, matched_keywords = self._filter_contexts_by_keywords(
+            contexts, keywords
+        )
+        if keywords and not filtered_contexts:
+            answer = (
+                "抱歉，知识库中未检索到与您问题相关的内容，无法回答。"
+                "请确认相关文档已上传，或换一种问法。"
+            )
+            logger.info(
+                "关键词一致性拦截：查询关键词 %s 在召回结果中均未命中，直接拒答",
+                keywords,
+            )
+            self.memory.add_message(session_id, "user", user_query)
+            self.memory.add_message(
+                session_id, "assistant", answer,
+                extra={"references": [], "images": [], "no_match": True},
+            )
+            return {"answer": answer, "references": [], "images": [], "no_match": True}
+        contexts = filtered_contexts
 
         # 2. 获取历史对话
         history = self.memory.get_history_as_list(session_id, limit=6)

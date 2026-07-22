@@ -34,6 +34,7 @@ python-jose[cryptography]==3.3.0
 
 # ---- 多源数据流水线：文档解析 ----
 pypdf==4.3.1                     # PDF 文本解析
+PyMuPDF>=1.24.0                  # PDF 页面渲染（扫描件 OCR / 以文搜图 用，无需外部 poppler）
 python-docx==1.1.2               # Word 解析
 openpyxl==3.1.5                  # Excel 解析
 beautifulsoup4==4.12.3           # 网页/URL 数据源解析
